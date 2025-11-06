@@ -9,7 +9,27 @@ export const submitEmotion = async (req, res) => {
     const { emotion, message } = req.body;
 
     if (!emotion) {
-      return res.status(400).json({ message: 'Please provide an emotion' });
+      return res.status(400).json({ message: 'Vui lòng chọn cảm xúc' });
+    }
+
+    // Check if student has already submitted in the last 24 hours
+    const now = new Date();
+    const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+    const recentSubmission = await Emotion.findOne({
+      studentId: req.user._id,
+      date: { $gte: twentyFourHoursAgo }
+    }).sort({ date: -1 });
+
+    if (recentSubmission) {
+      const timeUntilNext = new Date(recentSubmission.date.getTime() + 24 * 60 * 60 * 1000);
+      const hoursLeft = Math.ceil((timeUntilNext - now) / (1000 * 60 * 60));
+      
+      return res.status(429).json({ 
+        message: `Bạn đã gửi cảm xúc trong 24 giờ qua. Vui lòng đợi ${hoursLeft} giờ nữa để gửi lại.`,
+        canSubmitAt: timeUntilNext,
+        hoursLeft: hoursLeft
+      });
     }
 
     // Create emotion record
@@ -30,11 +50,11 @@ export const submitEmotion = async (req, res) => {
 
     res.status(201).json({
       emotion: populatedEmotion,
-      message: 'Emotion submitted successfully! You earned 10 points! 🌟'
+      message: 'Gửi cảm xúc thành công! Bạn nhận được 10 điểm! 🌟'
     });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: 'Lỗi server' });
   }
 };
 

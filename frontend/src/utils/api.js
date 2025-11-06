@@ -194,5 +194,14 @@ export const getGlobalAnalytics = async () => {
   return response.data;
 };
 
+// Auth APIs
+export const changePassword = async (currentPassword, newPassword) => {
+  const response = await axiosInstance.put('/auth/change-password', {
+    currentPassword,
+    newPassword
+  });
+  return response.data;
+};
+
 // Export axiosInstance for use in AuthContext
 export { axiosInstance };

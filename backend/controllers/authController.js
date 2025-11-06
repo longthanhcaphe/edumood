@@ -112,3 +112,52 @@ export const getMe = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
+
+// @desc    Change password (Student)
+// @route   PUT /api/auth/change-password
+// @access  Private (Student)
+export const changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: 'Vui lòng cung cấp mật khẩu hiện tại và mật khẩu mới' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: 'Mật khẩu mới phải có ít nhất 6 ký tự' });
+    }
+
+    // Only allow students to change password
+    if (req.user.role !== 'student') {
+      return res.status(403).json({ message: 'Chỉ học sinh mới có thể đổi mật khẩu' });
+    }
+
+    // Get full user with password
+    const student = await Student.findById(req.user._id);
+
+    if (!student) {
+      return res.status(404).json({ message: 'Không tìm thấy học sinh' });
+    }
+
+    // Verify current password
+    const isMatch = await bcrypt.compare(currentPassword, student.password);
+
+    if (!isMatch) {
+      return res.status(401).json({ message: 'Mật khẩu hiện tại không đúng' });
+    }
+
+    // Hash new password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+    // Update password
+    student.password = hashedPassword;
+    await student.save();
+
+    res.json({ message: 'Đổi mật khẩu thành công!' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+};

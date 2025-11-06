@@ -7,7 +7,7 @@ import { EmotionPieChart, EmotionBarChart, WeeklyTrendChart } from '../component
 import AIInsightBox from '../components/AIInsightBox';
 import { 
   Users, Plus, Trash2, Edit2, FileText, TrendingUp, CheckCircle, XCircle,
-  Calendar, BarChart3, Sparkles, UserPlus, Save, X, Search, Filter
+  Calendar, BarChart3, Sparkles, UserPlus, Save, X, Search, Filter, Gift, Bell
 } from 'lucide-react';
 import {
   getStudentsByClass,
@@ -17,7 +17,9 @@ import {
   getClassAnalytics,
   getAIAnalysis,
   checkTodaySubmission,
-  getAllClasses
+  getAllClasses,
+  getPendingRedemptions,
+  updateRedemptionStatus
 } from '../utils/api';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -35,6 +37,8 @@ const TeacherDashboard = () => {
   const [submissionStatus, setSubmissionStatus] = useState({});
   const [activeTab, setActiveTab] = useState('overview');
   const [searchTerm, setSearchTerm] = useState('');
+  const [pendingRedemptions, setPendingRedemptions] = useState([]);
+  const [loadingRedemptions, setLoadingRedemptions] = useState(false);
 
   const [studentForm, setStudentForm] = useState({
     studentId: '',
@@ -51,8 +55,16 @@ const TeacherDashboard = () => {
       loadStudents();
       loadAnalytics();
       checkStudentSubmissions();
+      loadPendingRedemptions();
     }
   }, [selectedClass]);
+
+  useEffect(() => {
+    // Load redemptions on mount and when tab changes to notifications
+    if (activeTab === 'notifications') {
+      loadPendingRedemptions();
+    }
+  }, [activeTab]);
 
   const loadClasses = async () => {
     try {
@@ -100,6 +112,28 @@ const TeacherDashboard = () => {
       setSubmissionStatus(status);
     } catch (error) {
       console.error('Không thể kiểm tra trạng thái:', error);
+    }
+  };
+
+  const loadPendingRedemptions = async () => {
+    setLoadingRedemptions(true);
+    try {
+      const data = await getPendingRedemptions();
+      setPendingRedemptions(data);
+    } catch (error) {
+      console.error('Không thể tải thông báo:', error);
+    } finally {
+      setLoadingRedemptions(false);
+    }
+  };
+
+  const handleUpdateRedemptionStatus = async (redemptionId, status) => {
+    try {
+      await updateRedemptionStatus(redemptionId, status);
+      await loadPendingRedemptions();
+      alert(status === 'approved' ? 'Đã duyệt phần thưởng!' : 'Đã từ chối phần thưởng!');
+    } catch (error) {
+      alert(error.response?.data?.message || 'Không thể cập nhật trạng thái');
     }
   };
 
@@ -515,6 +549,7 @@ const TeacherDashboard = () => {
     { id: 'overview', label: 'Tổng Quan', icon: BarChart3 },
     { id: 'students', label: 'Học Sinh', icon: Users },
     { id: 'analytics', label: 'Phân Tích', icon: TrendingUp },
+    { id: 'notifications', label: 'Thông Báo', icon: Bell, badge: pendingRedemptions.length },
   ];
 
   const getInitials = (name) => {
@@ -631,7 +666,7 @@ const TeacherDashboard = () => {
                     onClick={() => setActiveTab(tab.id)}
                     className={`
                       flex-1 py-3 px-4 rounded-xl font-semibold transition-all
-                      flex items-center justify-center gap-2
+                      flex items-center justify-center gap-2 relative
                       ${activeTab === tab.id
                         ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg'
                         : 'text-white/70 hover:text-white hover:bg-white/10'
@@ -640,6 +675,11 @@ const TeacherDashboard = () => {
                   >
                     <Icon className="w-5 h-5" />
                     {tab.label}
+                    {tab.badge > 0 && (
+                      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                        {tab.badge}
+                      </span>
+                    )}
                   </motion.button>
                 );
               })}
@@ -1012,6 +1052,117 @@ const TeacherDashboard = () => {
                       );
                     })}
                   </div>
+                </div>
+              </GlassCard>
+            </motion.div>
+          )}
+
+          {/* Notifications Tab */}
+          {activeTab === 'notifications' && (
+            <motion.div
+              key="notifications"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+            >
+              <GlassCard>
+                <div className="p-6 border-b border-white/10">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-2xl font-bold text-white flex items-center gap-2">
+                      <Bell className="w-7 h-7" />
+                      Thông Báo Đổi Phần Thưởng
+                      {pendingRedemptions.length > 0 && (
+                        <span className="bg-red-500 text-white text-sm font-bold rounded-full px-3 py-1">
+                          {pendingRedemptions.length}
+                        </span>
+                      )}
+                    </h3>
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={loadPendingRedemptions}
+                      disabled={loadingRedemptions}
+                      className="btn-secondary flex items-center gap-2"
+                    >
+                      <span>{loadingRedemptions ? 'Đang tải...' : 'Làm mới'}</span>
+                    </motion.button>
+                  </div>
+                </div>
+
+                <div className="p-6">
+                  {loadingRedemptions ? (
+                    <div className="text-center py-12">
+                      <div className="spinner w-12 h-12 border-4 mx-auto mb-4"></div>
+                      <p className="text-white/70">Đang tải thông báo...</p>
+                    </div>
+                  ) : pendingRedemptions.length === 0 ? (
+                    <div className="text-center py-12">
+                      <Gift className="w-16 h-16 text-white/30 mx-auto mb-4" />
+                      <p className="text-white/70">Không có thông báo nào</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {pendingRedemptions.map((redemption) => (
+                        <motion.div
+                          key={redemption._id}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="glass-card p-6 rounded-xl"
+                        >
+                          <div className="flex items-start gap-4">
+                            <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-2xl flex-shrink-0">
+                              <Gift className="w-8 h-8" />
+                            </div>
+
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between gap-4 mb-2">
+                                <div>
+                                  <h4 className="text-white font-semibold text-lg">
+                                    {redemption.rewardName}
+                                  </h4>
+                                  <p className="text-white/70 text-sm mt-1">
+                                    Học sinh: {redemption.studentId?.name || 'N/A'} ({redemption.studentId?.studentId || 'N/A'})
+                                  </p>
+                                  <p className="text-white/60 text-xs mt-1">
+                                    Đã đổi: {new Date(redemption.createdAt).toLocaleString('vi-VN')}
+                                  </p>
+                                </div>
+                                <div className="text-right">
+                                  <div className="text-yellow-400 font-bold text-xl">
+                                    {redemption.pointsSpent} điểm
+                                  </div>
+                                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-yellow-500/20 text-yellow-400 rounded-lg text-xs mt-1">
+                                    Đang chờ duyệt
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="flex gap-2 mt-4">
+                                <motion.button
+                                  whileHover={{ scale: 1.05 }}
+                                  whileTap={{ scale: 0.95 }}
+                                  onClick={() => handleUpdateRedemptionStatus(redemption._id, 'approved')}
+                                  className="btn-primary flex items-center gap-2 flex-1"
+                                >
+                                  <CheckCircle className="w-5 h-5" />
+                                  Duyệt
+                                </motion.button>
+                                <motion.button
+                                  whileHover={{ scale: 1.05 }}
+                                  whileTap={{ scale: 0.95 }}
+                                  onClick={() => handleUpdateRedemptionStatus(redemption._id, 'rejected')}
+                                  className="btn-secondary flex items-center gap-2 flex-1"
+                                >
+                                  <XCircle className="w-5 h-5" />
+                                  Từ chối
+                                </motion.button>
+                              </div>
+                            </div>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </GlassCard>
             </motion.div>
