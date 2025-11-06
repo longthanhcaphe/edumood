@@ -20,6 +20,7 @@ import {
   getAllClasses
 } from '../utils/api';
 import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 const TeacherDashboard = () => {
   const { user } = useAuth();
@@ -175,177 +176,161 @@ const TeacherDashboard = () => {
     setStudentForm({ studentId: '', name: '', password: '' });
   };
 
-  const exportPDF = () => {
+  const exportPDF = async () => {
     try {
-      const doc = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4'
-      });
-
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const pageHeight = doc.internal.pageSize.getHeight();
-      const margin = 20;
-      let currentY = margin;
-
-      // Header với gradient background
-      doc.setFillColor(139, 92, 246); // Purple
-      doc.rect(0, 0, pageWidth, 50, 'F');
-      
-      // Title
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(24);
-      doc.setFont('helvetica', 'bold');
-      doc.text('BÁO CÁO CẢM XÚC HỌC SINH', pageWidth / 2, 20, { align: 'center' });
-      
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'normal');
       const className = classes.find(c => c._id === selectedClass)?.name || 'Lớp';
-      doc.text(`Lớp: ${className}`, pageWidth / 2, 30, { align: 'center' });
-      doc.text(`Ngày xuất báo cáo: ${new Date().toLocaleDateString('vi-VN')}`, pageWidth / 2, 37, { align: 'center' });
+      
+      // Tạo HTML content cho PDF
+      const pdfContent = document.createElement('div');
+      pdfContent.style.width = '794px'; // A4 width in pixels (210mm)
+      pdfContent.style.padding = '40px';
+      pdfContent.style.backgroundColor = '#ffffff';
+      pdfContent.style.fontFamily = 'Arial, sans-serif';
+      pdfContent.style.color = '#000000';
+      
+      // Header
+      const header = document.createElement('div');
+      header.style.background = 'linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)';
+      header.style.padding = '30px';
+      header.style.marginBottom = '30px';
+      header.style.borderRadius = '10px';
+      header.style.color = '#ffffff';
+      header.style.textAlign = 'center';
+      header.innerHTML = `
+        <h1 style="margin: 0; font-size: 32px; font-weight: bold; margin-bottom: 10px;">
+          📊 BÁO CÁO CẢM XÚC HỌC SINH
+        </h1>
+        <p style="margin: 5px 0; font-size: 16px;">Lớp: ${className}</p>
+        <p style="margin: 5px 0; font-size: 14px;">Ngày xuất báo cáo: ${new Date().toLocaleDateString('vi-VN')}</p>
+      `;
+      pdfContent.appendChild(header);
 
-      currentY = 60;
-
-      // Thông tin tổng quan
+      // Tổng quan
       if (analytics) {
-        doc.setTextColor(0, 0, 0);
-        doc.setFontSize(16);
-        doc.setFont('helvetica', 'bold');
-        doc.text('📊 TỔNG QUAN', margin, currentY);
-        currentY += 10;
+        const overviewSection = document.createElement('div');
+        overviewSection.style.marginBottom = '30px';
+        
+        const overviewTitle = document.createElement('h2');
+        overviewTitle.style.fontSize = '24px';
+        overviewTitle.style.fontWeight = 'bold';
+        overviewTitle.style.marginBottom = '20px';
+        overviewTitle.style.color = '#1f2937';
+        overviewTitle.textContent = '📊 TỔNG QUAN';
+        overviewSection.appendChild(overviewTitle);
 
-        // Stats boxes
-        const statsStartY = currentY;
-        const boxWidth = 35;
-        const boxHeight = 20;
-        const spacing = 5;
-        let boxX = margin;
+        // Stats grid
+        const statsGrid = document.createElement('div');
+        statsGrid.style.display = 'grid';
+        statsGrid.style.gridTemplateColumns = 'repeat(5, 1fr)';
+        statsGrid.style.gap = '15px';
+        statsGrid.style.marginBottom = '20px';
 
         const emotionStats = [
-          { emotion: 'happy', label: 'Vui vẻ', emoji: '😊', color: [252, 211, 77] },
-          { emotion: 'sad', label: 'Buồn', emoji: '😔', color: [96, 165, 250] },
-          { emotion: 'angry', label: 'Giận dữ', emoji: '😡', color: [239, 68, 68] },
-          { emotion: 'tired', label: 'Mệt mỏi', emoji: '😴', color: [167, 139, 250] },
-          { emotion: 'neutral', label: 'Bình thường', emoji: '😐', color: [148, 163, 184] }
+          { emotion: 'happy', label: 'Vui vẻ', emoji: '😊', color: '#fcd34d', bgColor: '#fef3c7' },
+          { emotion: 'sad', label: 'Buồn', emoji: '😔', color: '#60a5fa', bgColor: '#dbeafe' },
+          { emotion: 'angry', label: 'Giận dữ', emoji: '😡', color: '#ef4444', bgColor: '#fee2e2' },
+          { emotion: 'tired', label: 'Mệt mỏi', emoji: '😴', color: '#a78bfa', bgColor: '#ede9fe' },
+          { emotion: 'neutral', label: 'Bình thường', emoji: '😐', color: '#94a3b8', bgColor: '#f1f5f9' }
         ];
 
-        emotionStats.forEach((stat, index) => {
-          if (boxX + boxWidth > pageWidth - margin) {
-            boxX = margin;
-            currentY += boxHeight + spacing;
-          }
-
+        emotionStats.forEach(stat => {
           const count = analytics.emotionDistribution[stat.emotion] || 0;
-          
-          // Box background
-          doc.setFillColor(stat.color[0], stat.color[1], stat.color[2]);
-          doc.setGlobalAlpha(0.2);
-          doc.roundedRect(boxX, currentY, boxWidth, boxHeight, 3, 3, 'F');
-          doc.setGlobalAlpha(1);
-
-          // Box border
-          doc.setDrawColor(stat.color[0], stat.color[1], stat.color[2]);
-          doc.setLineWidth(0.5);
-          doc.roundedRect(boxX, currentY, boxWidth, boxHeight, 3, 3);
-
-          // Content
-          doc.setFontSize(14);
-          doc.setFont('helvetica', 'bold');
-          doc.setTextColor(0, 0, 0);
-          doc.text(stat.emoji, boxX + 3, currentY + 8);
-          doc.text(count.toString(), boxX + boxWidth - 10, currentY + 8, { align: 'right' });
-          
-          doc.setFontSize(8);
-          doc.setFont('helvetica', 'normal');
-          const labelLines = doc.splitTextToSize(stat.label, boxWidth - 6);
-          doc.text(labelLines, boxX + boxWidth / 2, currentY + 15, { align: 'center' });
-
-          boxX += boxWidth + spacing;
+          const statBox = document.createElement('div');
+          statBox.style.backgroundColor = stat.bgColor;
+          statBox.style.border = `2px solid ${stat.color}`;
+          statBox.style.borderRadius = '12px';
+          statBox.style.padding = '20px';
+          statBox.style.textAlign = 'center';
+          statBox.innerHTML = `
+            <div style="font-size: 40px; margin-bottom: 10px;">${stat.emoji}</div>
+            <div style="font-size: 32px; font-weight: bold; color: ${stat.color}; margin-bottom: 5px;">${count}</div>
+            <div style="font-size: 14px; color: #4b5563; font-weight: 500;">${stat.label}</div>
+          `;
+          statsGrid.appendChild(statBox);
         });
 
-        currentY += boxHeight + 15;
+        overviewSection.appendChild(statsGrid);
 
-        // Tổng số lượt gửi
+        // Thông tin thêm
         const totalEmotions = Object.values(analytics.emotionDistribution).reduce((sum, count) => sum + count, 0);
-        doc.setFontSize(12);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(100, 100, 100);
-        doc.text(`Tổng số lượt gửi: ${totalEmotions}`, margin, currentY);
-        currentY += 10;
+        const infoDiv = document.createElement('div');
+        infoDiv.style.backgroundColor = '#f9fafb';
+        infoDiv.style.borderRadius = '8px';
+        infoDiv.style.padding = '15px';
+        infoDiv.style.fontSize = '14px';
+        infoDiv.style.color = '#374151';
+        infoDiv.innerHTML = `
+          <p style="margin: 5px 0;"><strong>📈 Tổng số lượt gửi:</strong> ${totalEmotions}</p>
+          <p style="margin: 5px 0;"><strong>✅ Tỷ lệ gửi hôm nay:</strong> ${submissionRate}% (${submittedCount}/${students.length} học sinh)</p>
+        `;
+        overviewSection.appendChild(infoDiv);
 
-        // Tỷ lệ gửi hôm nay
-        doc.text(`Tỷ lệ gửi hôm nay: ${submissionRate}% (${submittedCount}/${students.length} học sinh)`, margin, currentY);
-        currentY += 15;
+        pdfContent.appendChild(overviewSection);
       }
 
-      // Nhận định AI
+      // Phân tích AI
       if (aiAnalysis && aiAnalysis.summary) {
-        // Check if needs new page
-        if (currentY > pageHeight - 80) {
-          doc.addPage();
-          currentY = margin;
-        }
-
-        doc.setFontSize(16);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(0, 0, 0);
-        doc.text('🤖 PHÂN TÍCH AI', margin, currentY);
-        currentY += 10;
-
-        // Background box for AI analysis
-        doc.setFillColor(240, 240, 240);
-        doc.setGlobalAlpha(0.5);
-        doc.roundedRect(margin, currentY, pageWidth - 2 * margin, 60, 3, 3, 'F');
-        doc.setGlobalAlpha(1);
-
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(0, 0, 0);
+        const aiSection = document.createElement('div');
+        aiSection.style.marginBottom = '30px';
         
-        const aiText = aiAnalysis.summary;
-        const lines = doc.splitTextToSize(aiText, pageWidth - 2 * margin - 10);
-        
-        let textY = currentY + 7;
-        lines.forEach((line) => {
-          if (textY > pageHeight - margin - 10) {
-            doc.addPage();
-            textY = margin + 10;
-          }
-          doc.text(line, margin + 5, textY);
-          textY += 5;
-        });
+        const aiTitle = document.createElement('h2');
+        aiTitle.style.fontSize = '24px';
+        aiTitle.style.fontWeight = 'bold';
+        aiTitle.style.marginBottom = '15px';
+        aiTitle.style.color = '#1f2937';
+        aiTitle.textContent = '🤖 PHÂN TÍCH AI';
+        aiSection.appendChild(aiTitle);
 
-        currentY = textY + 10;
+        const aiBox = document.createElement('div');
+        aiBox.style.backgroundColor = '#f3f4f6';
+        aiBox.style.borderLeft = '4px solid #8b5cf6';
+        aiBox.style.borderRadius = '8px';
+        aiBox.style.padding = '20px';
+        aiBox.style.fontSize = '14px';
+        aiBox.style.lineHeight = '1.8';
+        aiBox.style.color = '#1f2937';
+        aiBox.style.whiteSpace = 'pre-wrap';
+        aiBox.textContent = aiAnalysis.summary;
+        aiSection.appendChild(aiBox);
+
+        pdfContent.appendChild(aiSection);
       }
 
-      // Chi tiết phân bố cảm xúc (bảng)
+      // Bảng chi tiết
       if (analytics) {
-        if (currentY > pageHeight - 60) {
-          doc.addPage();
-          currentY = margin;
-        }
+        const tableSection = document.createElement('div');
+        tableSection.style.marginBottom = '30px';
+        
+        const tableTitle = document.createElement('h2');
+        tableTitle.style.fontSize = '24px';
+        tableTitle.style.fontWeight = 'bold';
+        tableTitle.style.marginBottom = '15px';
+        tableTitle.style.color = '#1f2937';
+        tableTitle.textContent = '📈 CHI TIẾT PHÂN BỐ';
+        tableSection.appendChild(tableTitle);
 
-        doc.setFontSize(16);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(0, 0, 0);
-        doc.text('📈 CHI TIẾT PHÂN BỐ', margin, currentY);
-        currentY += 10;
+        const table = document.createElement('table');
+        table.style.width = '100%';
+        table.style.borderCollapse = 'collapse';
+        table.style.borderRadius = '8px';
+        table.style.overflow = 'hidden';
+        table.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
 
         // Table header
-        doc.setFillColor(139, 92, 246);
-        doc.setGlobalAlpha(0.3);
-        doc.rect(margin, currentY, pageWidth - 2 * margin, 8, 'F');
-        doc.setGlobalAlpha(1);
+        const thead = document.createElement('thead');
+        thead.style.backgroundColor = '#8b5cf6';
+        thead.style.color = '#ffffff';
+        thead.innerHTML = `
+          <tr>
+            <th style="padding: 12px; text-align: left; font-weight: bold;">Cảm xúc</th>
+            <th style="padding: 12px; text-align: center; font-weight: bold;">Số lượt</th>
+            <th style="padding: 12px; text-align: right; font-weight: bold;">Tỷ lệ</th>
+          </tr>
+        `;
+        table.appendChild(thead);
 
-        doc.setFontSize(11);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(0, 0, 0);
-        doc.text('Cảm xúc', margin + 5, currentY + 6);
-        doc.text('Số lượt', margin + 80, currentY + 6);
-        doc.text('Tỷ lệ', pageWidth - margin - 30, currentY + 6, { align: 'right' });
-        
-        currentY += 10;
-
+        // Table body
+        const tbody = document.createElement('tbody');
         const totalCount = Object.values(analytics.emotionDistribution).reduce((sum, count) => sum + count, 0);
         const emotionLabels = {
           happy: '😊 Vui vẻ',
@@ -355,53 +340,74 @@ const TeacherDashboard = () => {
           tired: '😴 Mệt mỏi'
         };
 
-        let rowIndex = 0;
         Object.entries(analytics.emotionDistribution)
           .sort(([, a], [, b]) => b - a)
-          .forEach(([emotion, count]) => {
-            if (currentY > pageHeight - margin - 10) {
-              doc.addPage();
-              currentY = margin;
-            }
-
-            // Row background (alternating)
-            if (rowIndex % 2 === 0) {
-              doc.setFillColor(240, 240, 240);
-              doc.setGlobalAlpha(0.3);
-              doc.rect(margin, currentY - 3, pageWidth - 2 * margin, 7, 'F');
-              doc.setGlobalAlpha(1);
-            }
-
-            doc.setFontSize(10);
-            doc.setFont('helvetica', 'normal');
-            doc.text(emotionLabels[emotion] || emotion, margin + 5, currentY + 3);
-            doc.text(count.toString(), margin + 80, currentY + 3);
-            
+          .forEach(([emotion, count], index) => {
+            const row = document.createElement('tr');
+            row.style.backgroundColor = index % 2 === 0 ? '#ffffff' : '#f9fafb';
             const percentage = totalCount > 0 ? ((count / totalCount) * 100).toFixed(1) : '0';
-            doc.text(`${percentage}%`, pageWidth - margin - 5, currentY + 3, { align: 'right' });
-
-            currentY += 7;
-            rowIndex++;
+            row.innerHTML = `
+              <td style="padding: 12px; font-size: 14px; font-weight: 500;">${emotionLabels[emotion] || emotion}</td>
+              <td style="padding: 12px; text-align: center; font-size: 14px;">${count}</td>
+              <td style="padding: 12px; text-align: right; font-size: 14px; font-weight: bold; color: #8b5cf6;">${percentage}%</td>
+            `;
+            tbody.appendChild(row);
           });
+
+        table.appendChild(tbody);
+        tableSection.appendChild(table);
+        pdfContent.appendChild(tableSection);
       }
 
       // Footer
-      const totalPages = doc.getNumberOfPages();
-      for (let i = 1; i <= totalPages; i++) {
-        doc.setPage(i);
-        doc.setFontSize(8);
-        doc.setTextColor(150, 150, 150);
-        doc.text(
-          `Trang ${i} / ${totalPages} - Trường Cảm Xúc`,
-          pageWidth / 2,
-          pageHeight - 10,
-          { align: 'center' }
-        );
+      const footer = document.createElement('div');
+      footer.style.marginTop = '40px';
+      footer.style.paddingTop = '20px';
+      footer.style.borderTop = '2px solid #e5e7eb';
+      footer.style.textAlign = 'center';
+      footer.style.fontSize = '12px';
+      footer.style.color = '#6b7280';
+      footer.textContent = 'Trường Cảm Xúc - Hệ thống theo dõi cảm xúc học sinh';
+      pdfContent.appendChild(footer);
+
+      // Append to body temporarily
+      pdfContent.style.position = 'absolute';
+      pdfContent.style.left = '-9999px';
+      document.body.appendChild(pdfContent);
+
+      // Convert to canvas
+      const canvas = await html2canvas(pdfContent, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false
+      });
+
+      // Remove temp element
+      document.body.removeChild(pdfContent);
+
+      // Create PDF
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const imgWidth = 210; // A4 width in mm
+      const pageHeight = 297; // A4 height in mm
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
       }
 
       // Save PDF
-      const fileName = `bao-cao-${className}-${new Date().toISOString().split('T')[0]}.pdf`;
-      doc.save(fileName);
+      const fileName = `bao-cao-${className.replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.pdf`;
+      pdf.save(fileName);
     } catch (error) {
       console.error('Lỗi khi xuất PDF:', error);
       alert('Không thể xuất PDF. Vui lòng thử lại sau.');
