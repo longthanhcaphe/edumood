@@ -353,7 +353,11 @@ const TeacherDashboard = () => {
         const aiText = aiAnalysis.summary;
         const aiBox = document.createElement('div');
         aiBox.style.backgroundColor = '#f9fafb';
-        aiBox.style.border = '2px solid #e5e7eb';
+        aiBox.style.borderLeft = '4px solid #8b5cf6';
+        aiBox.style.borderTop = 'none';
+        aiBox.style.borderRight = 'none';
+        aiBox.style.borderBottom = 'none';
+        aiBox.style.border = 'none';
         aiBox.style.borderLeft = '4px solid #8b5cf6';
         aiBox.style.borderRadius = '8px';
         aiBox.style.padding = '25px';
@@ -361,36 +365,77 @@ const TeacherDashboard = () => {
         aiBox.style.lineHeight = '1.8';
         aiBox.style.color = '#1f2937';
         aiBox.style.boxShadow = '0 2px 8px rgba(0,0,0,0.05)';
+        aiBox.style.overflow = 'hidden';
         
         // Format text: convert markdown-style headers and lists to HTML
-        let formattedText = aiText
-          // Convert ### headers
-          .replace(/###\s+(.+)/g, '<h3 style="font-size: 18px; font-weight: bold; color: #8b5cf6; margin-top: 20px; margin-bottom: 10px; padding-bottom: 5px; border-bottom: 2px solid #e5e7eb;">$1</h3>')
-          // Convert **bold**
-          .replace(/\*\*(.+?)\*\*/g, '<strong style="color: #4b5563; font-weight: 600;">$1</strong>')
-          // Convert numbered lists (1. 2. 3.) - cải thiện regex
-          .replace(/(\d+\.\s+\*\*)(.+?)(\*\*)(.+)/g, '<div style="margin: 12px 0; padding-left: 25px;"><span style="color: #8b5cf6; font-weight: bold;">$1</span><strong style="color: #4b5563; font-weight: 600;">$2</strong>$3<span>$4</span></div>')
-          .replace(/(\d+\.\s+)(.+)/g, '<div style="margin: 12px 0; padding-left: 25px;"><span style="color: #8b5cf6; font-weight: bold;">$1</span><span>$2</span></div>')
-          // Convert bullet points (- or •)
-          .replace(/^[-•]\s+(.+)$/gm, '<div style="margin: 8px 0; padding-left: 25px;"><span style="color: #8b5cf6; margin-right: 8px;">•</span><span>$1</span></div>');
+        // Xử lý từng dòng để tránh format sai
+        const lines = aiText.split('\n');
+        let formattedHTML = '';
         
-        // Split by double line breaks to create paragraphs, nhưng giữ nguyên format đã có
-        const paragraphs = formattedText.split(/\n\n+/).filter(p => p.trim());
-        paragraphs.forEach((para, index) => {
-          // Nếu paragraph đã chứa HTML tags (từ formatting), giữ nguyên
-          if (para.includes('<h3') || para.includes('<div') || para.includes('<strong')) {
-            const p = document.createElement('div');
-            p.style.marginBottom = index < paragraphs.length - 1 ? '15px' : '0';
-            p.innerHTML = para.trim();
-            aiBox.appendChild(p);
-          } else {
-            // Nếu là plain text, tạo paragraph bình thường
-            const p = document.createElement('p');
-            p.style.marginBottom = index < paragraphs.length - 1 ? '15px' : '0';
-            p.innerHTML = para.trim();
-            aiBox.appendChild(p);
+        lines.forEach((line, index) => {
+          const trimmedLine = line.trim();
+          
+          if (!trimmedLine) {
+            // Empty line - close current paragraph/div và thêm spacing
+            if (formattedHTML && !formattedHTML.endsWith('</p>') && !formattedHTML.endsWith('</div>') && !formattedHTML.endsWith('</h3>')) {
+              formattedHTML += '</p>';
+            }
+            return;
           }
+          
+          // Check for ### headers - không dùng border-bottom để tránh line ngang
+          if (trimmedLine.startsWith('###')) {
+            const headerText = trimmedLine.replace(/^###\s+/, '');
+            formattedHTML += `<h3 style="font-size: 18px; font-weight: bold; color: #8b5cf6; margin-top: 20px; margin-bottom: 12px; padding: 0; display: block; width: 100%;">${headerText}</h3>`;
+            return;
+          }
+          
+          // Check for numbered lists with bold (1. **text**:)
+          if (/^\d+\.\s+\*\*/.test(trimmedLine)) {
+            const match = trimmedLine.match(/^(\d+\.\s+)\*\*(.+?)\*\*\s*:?\s*(.*)/);
+            if (match) {
+              formattedHTML += `<div style="margin: 12px 0 8px 0; padding: 0; display: block; width: 100%;"><span style="color: #8b5cf6; font-weight: bold; font-size: 15px; display: inline;">${match[1]}</span><strong style="color: #4b5563; font-weight: 600; font-size: 15px; display: inline;">${match[2]}</strong><span style="color: #6b7280; display: inline;">${match[3] ? ': ' + match[3] : ''}</span></div>`;
+            }
+            return;
+          }
+          
+          // Check for numbered lists (1. text)
+          if (/^\d+\.\s+/.test(trimmedLine)) {
+            const match = trimmedLine.match(/^(\d+\.\s+)(.+)/);
+            if (match && !trimmedLine.includes('<')) {
+              // Apply bold formatting to text if needed
+              let content = match[2].replace(/\*\*(.+?)\*\*/g, '<strong style="color: #4b5563; font-weight: 600;">$1</strong>');
+              formattedHTML += `<div style="margin: 12px 0 8px 0; padding: 0; display: block; width: 100%;"><span style="color: #8b5cf6; font-weight: bold; font-size: 15px; display: inline;">${match[1]}</span><span style="margin-left: 5px; display: inline;">${content}</span></div>`;
+            }
+            return;
+          }
+          
+          // Check for bullet points
+          if (/^[-•]\s+/.test(trimmedLine)) {
+            const content = trimmedLine.replace(/^[-•]\s+/, '').replace(/\*\*(.+?)\*\*/g, '<strong style="color: #4b5563; font-weight: 600;">$1</strong>');
+            formattedHTML += `<div style="margin: 8px 0; padding-left: 20px; display: block; width: 100%; position: relative; box-sizing: border-box;"><span style="position: absolute; left: 0; top: 0; color: #8b5cf6; font-weight: bold;">•</span><span style="display: block; margin-left: 10px; width: calc(100% - 10px);">${content}</span></div>`;
+            return;
+          }
+          
+          // Regular paragraph text
+          if (formattedHTML && !formattedHTML.endsWith('<p>') && !formattedHTML.endsWith('</div>') && !formattedHTML.endsWith('</h3>')) {
+            formattedHTML += '<p style="margin: 10px 0; line-height: 1.8; padding: 0; display: block; width: 100%;">';
+          } else if (!formattedHTML) {
+            formattedHTML += '<p style="margin: 10px 0; line-height: 1.8; padding: 0; display: block; width: 100%;">';
+          }
+          
+          // Apply bold formatting
+          let processedLine = trimmedLine.replace(/\*\*(.+?)\*\*/g, '<strong style="color: #4b5563; font-weight: 600;">$1</strong>');
+          formattedHTML += processedLine + ' ';
         });
+        
+        // Close last paragraph if needed
+        if (formattedHTML && !formattedHTML.endsWith('</p>') && !formattedHTML.endsWith('</div>') && !formattedHTML.endsWith('</h3>')) {
+          formattedHTML += '</p>';
+        }
+        
+        // Set innerHTML directly
+        aiBox.innerHTML = formattedHTML;
 
         aiSection.appendChild(aiBox);
         pdfContent.appendChild(aiSection);
