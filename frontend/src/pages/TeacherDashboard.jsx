@@ -176,43 +176,236 @@ const TeacherDashboard = () => {
   };
 
   const exportPDF = () => {
-    const doc = new jsPDF();
-    
-    doc.setFontSize(20);
-    doc.text('Báo Cáo Cảm Xúc Học Sinh', 20, 20);
-    
-    doc.setFontSize(12);
-    const className = classes.find(c => c._id === selectedClass)?.name || 'Lớp';
-    doc.text(`Lớp: ${className}`, 20, 35);
-    doc.text(`Ngày: ${new Date().toLocaleDateString('vi-VN')}`, 20, 42);
-    
-    if (analytics) {
-      doc.setFontSize(14);
-      doc.text('Phân Bố Cảm Xúc:', 20, 55);
-      doc.setFontSize(10);
-      let y = 65;
-      Object.entries(analytics.emotionDistribution).forEach(([emotion, count]) => {
-        const emotionLabels = {
-          happy: 'Vui vẻ',
-          neutral: 'Bình thường',
-          sad: 'Buồn',
-          angry: 'Giận dữ',
-          tired: 'Mệt mỏi'
-        };
-        doc.text(`${emotionLabels[emotion]}: ${count} lượt gửi`, 25, y);
-        y += 7;
+    try {
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
       });
+
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 20;
+      let currentY = margin;
+
+      // Header với gradient background
+      doc.setFillColor(139, 92, 246); // Purple
+      doc.rect(0, 0, pageWidth, 50, 'F');
+      
+      // Title
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(24);
+      doc.setFont('helvetica', 'bold');
+      doc.text('BÁO CÁO CẢM XÚC HỌC SINH', pageWidth / 2, 20, { align: 'center' });
+      
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'normal');
+      const className = classes.find(c => c._id === selectedClass)?.name || 'Lớp';
+      doc.text(`Lớp: ${className}`, pageWidth / 2, 30, { align: 'center' });
+      doc.text(`Ngày xuất báo cáo: ${new Date().toLocaleDateString('vi-VN')}`, pageWidth / 2, 37, { align: 'center' });
+
+      currentY = 60;
+
+      // Thông tin tổng quan
+      if (analytics) {
+        doc.setTextColor(0, 0, 0);
+        doc.setFontSize(16);
+        doc.setFont('helvetica', 'bold');
+        doc.text('📊 TỔNG QUAN', margin, currentY);
+        currentY += 10;
+
+        // Stats boxes
+        const statsStartY = currentY;
+        const boxWidth = 35;
+        const boxHeight = 20;
+        const spacing = 5;
+        let boxX = margin;
+
+        const emotionStats = [
+          { emotion: 'happy', label: 'Vui vẻ', emoji: '😊', color: [252, 211, 77] },
+          { emotion: 'sad', label: 'Buồn', emoji: '😔', color: [96, 165, 250] },
+          { emotion: 'angry', label: 'Giận dữ', emoji: '😡', color: [239, 68, 68] },
+          { emotion: 'tired', label: 'Mệt mỏi', emoji: '😴', color: [167, 139, 250] },
+          { emotion: 'neutral', label: 'Bình thường', emoji: '😐', color: [148, 163, 184] }
+        ];
+
+        emotionStats.forEach((stat, index) => {
+          if (boxX + boxWidth > pageWidth - margin) {
+            boxX = margin;
+            currentY += boxHeight + spacing;
+          }
+
+          const count = analytics.emotionDistribution[stat.emotion] || 0;
+          
+          // Box background
+          doc.setFillColor(stat.color[0], stat.color[1], stat.color[2]);
+          doc.setGlobalAlpha(0.2);
+          doc.roundedRect(boxX, currentY, boxWidth, boxHeight, 3, 3, 'F');
+          doc.setGlobalAlpha(1);
+
+          // Box border
+          doc.setDrawColor(stat.color[0], stat.color[1], stat.color[2]);
+          doc.setLineWidth(0.5);
+          doc.roundedRect(boxX, currentY, boxWidth, boxHeight, 3, 3);
+
+          // Content
+          doc.setFontSize(14);
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(0, 0, 0);
+          doc.text(stat.emoji, boxX + 3, currentY + 8);
+          doc.text(count.toString(), boxX + boxWidth - 10, currentY + 8, { align: 'right' });
+          
+          doc.setFontSize(8);
+          doc.setFont('helvetica', 'normal');
+          const labelLines = doc.splitTextToSize(stat.label, boxWidth - 6);
+          doc.text(labelLines, boxX + boxWidth / 2, currentY + 15, { align: 'center' });
+
+          boxX += boxWidth + spacing;
+        });
+
+        currentY += boxHeight + 15;
+
+        // Tổng số lượt gửi
+        const totalEmotions = Object.values(analytics.emotionDistribution).reduce((sum, count) => sum + count, 0);
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(100, 100, 100);
+        doc.text(`Tổng số lượt gửi: ${totalEmotions}`, margin, currentY);
+        currentY += 10;
+
+        // Tỷ lệ gửi hôm nay
+        doc.text(`Tỷ lệ gửi hôm nay: ${submissionRate}% (${submittedCount}/${students.length} học sinh)`, margin, currentY);
+        currentY += 15;
+      }
+
+      // Nhận định AI
+      if (aiAnalysis && aiAnalysis.summary) {
+        // Check if needs new page
+        if (currentY > pageHeight - 80) {
+          doc.addPage();
+          currentY = margin;
+        }
+
+        doc.setFontSize(16);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(0, 0, 0);
+        doc.text('🤖 PHÂN TÍCH AI', margin, currentY);
+        currentY += 10;
+
+        // Background box for AI analysis
+        doc.setFillColor(240, 240, 240);
+        doc.setGlobalAlpha(0.5);
+        doc.roundedRect(margin, currentY, pageWidth - 2 * margin, 60, 3, 3, 'F');
+        doc.setGlobalAlpha(1);
+
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(0, 0, 0);
+        
+        const aiText = aiAnalysis.summary;
+        const lines = doc.splitTextToSize(aiText, pageWidth - 2 * margin - 10);
+        
+        let textY = currentY + 7;
+        lines.forEach((line) => {
+          if (textY > pageHeight - margin - 10) {
+            doc.addPage();
+            textY = margin + 10;
+          }
+          doc.text(line, margin + 5, textY);
+          textY += 5;
+        });
+
+        currentY = textY + 10;
+      }
+
+      // Chi tiết phân bố cảm xúc (bảng)
+      if (analytics) {
+        if (currentY > pageHeight - 60) {
+          doc.addPage();
+          currentY = margin;
+        }
+
+        doc.setFontSize(16);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(0, 0, 0);
+        doc.text('📈 CHI TIẾT PHÂN BỐ', margin, currentY);
+        currentY += 10;
+
+        // Table header
+        doc.setFillColor(139, 92, 246);
+        doc.setGlobalAlpha(0.3);
+        doc.rect(margin, currentY, pageWidth - 2 * margin, 8, 'F');
+        doc.setGlobalAlpha(1);
+
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(0, 0, 0);
+        doc.text('Cảm xúc', margin + 5, currentY + 6);
+        doc.text('Số lượt', margin + 80, currentY + 6);
+        doc.text('Tỷ lệ', pageWidth - margin - 30, currentY + 6, { align: 'right' });
+        
+        currentY += 10;
+
+        const totalCount = Object.values(analytics.emotionDistribution).reduce((sum, count) => sum + count, 0);
+        const emotionLabels = {
+          happy: '😊 Vui vẻ',
+          neutral: '😐 Bình thường',
+          sad: '😔 Buồn',
+          angry: '😡 Giận dữ',
+          tired: '😴 Mệt mỏi'
+        };
+
+        let rowIndex = 0;
+        Object.entries(analytics.emotionDistribution)
+          .sort(([, a], [, b]) => b - a)
+          .forEach(([emotion, count]) => {
+            if (currentY > pageHeight - margin - 10) {
+              doc.addPage();
+              currentY = margin;
+            }
+
+            // Row background (alternating)
+            if (rowIndex % 2 === 0) {
+              doc.setFillColor(240, 240, 240);
+              doc.setGlobalAlpha(0.3);
+              doc.rect(margin, currentY - 3, pageWidth - 2 * margin, 7, 'F');
+              doc.setGlobalAlpha(1);
+            }
+
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'normal');
+            doc.text(emotionLabels[emotion] || emotion, margin + 5, currentY + 3);
+            doc.text(count.toString(), margin + 80, currentY + 3);
+            
+            const percentage = totalCount > 0 ? ((count / totalCount) * 100).toFixed(1) : '0';
+            doc.text(`${percentage}%`, pageWidth - margin - 5, currentY + 3, { align: 'right' });
+
+            currentY += 7;
+            rowIndex++;
+          });
+      }
+
+      // Footer
+      const totalPages = doc.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.setTextColor(150, 150, 150);
+        doc.text(
+          `Trang ${i} / ${totalPages} - Trường Cảm Xúc`,
+          pageWidth / 2,
+          pageHeight - 10,
+          { align: 'center' }
+        );
+      }
+
+      // Save PDF
+      const fileName = `bao-cao-${className}-${new Date().toISOString().split('T')[0]}.pdf`;
+      doc.save(fileName);
+    } catch (error) {
+      console.error('Lỗi khi xuất PDF:', error);
+      alert('Không thể xuất PDF. Vui lòng thử lại sau.');
     }
-    
-    if (aiAnalysis) {
-      doc.setFontSize(14);
-      doc.text('Nhận Định AI:', 20, y + 10);
-      doc.setFontSize(10);
-      const lines = doc.splitTextToSize(aiAnalysis.summary, 170);
-      doc.text(lines, 20, y + 20);
-    }
-    
-    doc.save(`bao-cao-${Date.now()}.pdf`);
   };
 
   const filteredStudents = students.filter(student =>
