@@ -185,8 +185,9 @@ const TeacherDashboard = () => {
       pdfContent.style.width = '794px'; // A4 width in pixels (210mm)
       pdfContent.style.padding = '40px';
       pdfContent.style.backgroundColor = '#ffffff';
-      pdfContent.style.fontFamily = 'Arial, sans-serif';
+      pdfContent.style.fontFamily = '"Segoe UI", Arial, "Helvetica Neue", sans-serif';
       pdfContent.style.color = '#000000';
+      pdfContent.style.lineHeight = '1.6';
       
       // Header
       const header = document.createElement('div');
@@ -272,27 +273,49 @@ const TeacherDashboard = () => {
       if (aiAnalysis && aiAnalysis.summary) {
         const aiSection = document.createElement('div');
         aiSection.style.marginBottom = '30px';
+        aiSection.style.pageBreakInside = 'avoid';
         
         const aiTitle = document.createElement('h2');
         aiTitle.style.fontSize = '24px';
         aiTitle.style.fontWeight = 'bold';
-        aiTitle.style.marginBottom = '15px';
+        aiTitle.style.marginBottom = '20px';
         aiTitle.style.color = '#1f2937';
         aiTitle.textContent = '🤖 PHÂN TÍCH AI';
         aiSection.appendChild(aiTitle);
 
+        // Parse và format AI summary thành HTML đẹp hơn
+        const aiText = aiAnalysis.summary;
         const aiBox = document.createElement('div');
-        aiBox.style.backgroundColor = '#f3f4f6';
+        aiBox.style.backgroundColor = '#f9fafb';
         aiBox.style.borderLeft = '4px solid #8b5cf6';
         aiBox.style.borderRadius = '8px';
-        aiBox.style.padding = '20px';
+        aiBox.style.padding = '25px';
         aiBox.style.fontSize = '14px';
         aiBox.style.lineHeight = '1.8';
         aiBox.style.color = '#1f2937';
-        aiBox.style.whiteSpace = 'pre-wrap';
-        aiBox.textContent = aiAnalysis.summary;
-        aiSection.appendChild(aiBox);
+        aiBox.style.boxShadow = '0 2px 8px rgba(0,0,0,0.05)';
+        
+        // Format text: convert markdown-style headers and lists to HTML
+        let formattedText = aiText
+          // Convert ### headers
+          .replace(/###\s+(.+)/g, '<h3 style="font-size: 18px; font-weight: bold; color: #8b5cf6; margin-top: 20px; margin-bottom: 10px; padding-bottom: 5px; border-bottom: 2px solid #e5e7eb;">$1</h3>')
+          // Convert **bold**
+          .replace(/\*\*(.+?)\*\*/g, '<strong style="color: #4b5563; font-weight: 600;">$1</strong>')
+          // Convert numbered lists (1. 2. 3.)
+          .replace(/(\d+\.\s+)(.+)/g, '<div style="margin: 12px 0; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #8b5cf6; font-weight: bold;">$1</span><span style="display: block; margin-left: 25px;">$2</span></div>')
+          // Convert bullet points (- or •)
+          .replace(/^[-•]\s+(.+)$/gm, '<div style="margin: 8px 0; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #8b5cf6;">•</span><span style="display: block; margin-left: 15px;">$1</span></div>');
+        
+        // Split by double line breaks to create paragraphs
+        const paragraphs = formattedText.split(/\n\n+/).filter(p => p.trim());
+        paragraphs.forEach((para, index) => {
+          const p = document.createElement('div');
+          p.style.marginBottom = index < paragraphs.length - 1 ? '15px' : '0';
+          p.innerHTML = para.trim();
+          aiBox.appendChild(p);
+        });
 
+        aiSection.appendChild(aiBox);
         pdfContent.appendChild(aiSection);
       }
 
@@ -380,7 +403,17 @@ const TeacherDashboard = () => {
         scale: 2,
         useCORS: true,
         backgroundColor: '#ffffff',
-        logging: false
+        logging: false,
+        allowTaint: true,
+        removeContainer: true,
+        imageTimeout: 15000,
+        onclone: (clonedDoc) => {
+          // Ensure all styles are applied in cloned document
+          const clonedElement = clonedDoc.querySelector('body').lastChild;
+          if (clonedElement) {
+            clonedElement.style.fontFamily = '"Segoe UI", Arial, "Helvetica Neue", sans-serif';
+          }
+        }
       });
 
       // Remove temp element
