@@ -1,7 +1,10 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 
 const AuthContext = createContext();
+
+// Get API base URL from environment variable
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -16,6 +19,25 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(localStorage.getItem('token'));
   const [loading, setLoading] = useState(true);
 
+  const logout = useCallback(() => {
+    localStorage.removeItem('token');
+    setToken(null);
+    setUser(null);
+    delete axios.defaults.headers.common['Authorization'];
+  }, []);
+
+  const loadUser = useCallback(async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/auth/me`);
+      setUser(response.data);
+    } catch (error) {
+      console.error('Failed to load user:', error);
+      logout();
+    } finally {
+      setLoading(false);
+    }
+  }, [logout]);
+
   // Set axios default authorization header
   useEffect(() => {
     if (token) {
@@ -24,23 +46,11 @@ export const AuthProvider = ({ children }) => {
     } else {
       setLoading(false);
     }
-  }, [token]);
-
-  const loadUser = async () => {
-    try {
-      const response = await axios.get('/api/auth/me');
-      setUser(response.data);
-    } catch (error) {
-      console.error('Failed to load user:', error);
-      logout();
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [token, loadUser]);
 
   const login = async (identifier, password, role) => {
     try {
-      const response = await axios.post('/api/auth/login', {
+      const response = await axios.post(`${API_BASE_URL}/auth/login`, {
         identifier,
         password,
         role
@@ -61,12 +71,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem('token');
-    setToken(null);
-    setUser(null);
-    delete axios.defaults.headers.common['Authorization'];
-  };
 
   const updateUser = (updates) => {
     setUser(prev => ({ ...prev, ...updates }));
