@@ -58,8 +58,8 @@ const Login = () => {
         className="w-full max-w-md"
       >
         <div ref={titleRef} className="text-center mb-8">
-          <h1 className="text-5xl font-bold text-white mb-2">EduMood-HDSchool</h1>
-          <p className="text-white/80 text-lg">Theo dõi cảm xúc, cùng nhau phát triển 🌟</p>
+          <h1 className="text-5xl font-bold text-white mb-2">Edumood</h1>
+          <p className="text-white/80 text-lg">Theo dõi cảm xúc 🌟 HD School</p>
         </div>
 
         <GlassCard className="p-8">
